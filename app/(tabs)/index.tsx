@@ -29,6 +29,7 @@ type Product = {
   price: number;
   compatibility: string;
   machineType?: string;
+  material?: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   color: string;
   featured?: boolean;
@@ -48,6 +49,7 @@ type Sale = {
   quantity: number;
   total: number;
 };
+type CustomOption = { id: string; name: string; category?: string };
 
 const PRODUCTS: Product[] = [
   {
@@ -180,11 +182,54 @@ const STORAGE_ORDERS = "motoparts-orders-v1";
 const STORAGE_INVENTORY = "motoparts-inventory-v1";
 const STORAGE_SALES = "motoparts-sales-v1";
 const STORAGE_PRODUCTS = "motoparts-products-v1";
+const STORAGE_MACHINE_TYPES = "motoparts-machine-types-v1";
+const STORAGE_PART_TYPES = "motoparts-part-types-v1";
+const STORAGE_MATERIALS = "motoparts-materials-v1";
+const MOTORCYCLE_PARTS = [
+  { name: "سلندر", category: "المحرك والتغذية" },
+  { name: "بستم", category: "المحرك والتغذية" },
+  { name: "شنابر", category: "المحرك والتغذية" },
+  { name: "كربراتير", category: "المحرك والتغذية" },
+  { name: "حدافة (كرنك)", category: "المحرك والتغذية" },
+  { name: "طقم تروس الفتيس", category: "المحرك والتغذية" },
+  { name: "جوانات الموتور", category: "المحرك والتغذية" },
+  { name: "فلتر زيت", category: "المحرك والتغذية" },
+  { name: "فلتر بنزين", category: "المحرك والتغذية" },
+  { name: "جنزير", category: "الحركة والنقل" },
+  { name: "طارات (ترس أمامي وخلفي)", category: "الحركة والنقل" },
+  { name: "طقم ديبرياج (أسطوانة، ورق، وسوست)", category: "الحركة والنقل" },
+  { name: "واير دبرياج", category: "الحركة والنقل" },
+  { name: "واير فرامل", category: "الحركة والنقل" },
+  { name: "واير عداد", category: "الحركة والنقل" },
+  { name: "فورش (مساعدين أماميين)", category: "العفشة والتوجيه" },
+  { name: "مساعدين خلفيين", category: "العفشة والتوجيه" },
+  {
+    name: "رولمان بلي (بلية الرقبة / بلية العجل)",
+    category: "العفشة والتوجيه",
+  },
+  { name: "شلته (المقعد)", category: "العفشة والتوجيه" },
+  { name: "طقم باكم", category: "الفرامل والأمان" },
+  { name: "تيل فرامل (أمامي وخلفي)", category: "الفرامل والأمان" },
+  { name: "كلاكس", category: "الفرامل والأمان" },
+  { name: "تانك (خزان الوقود)", category: "الهيكل والإكسسوارات" },
+  { name: "طقم الصاج (فايبر وبلاستيك)", category: "الهيكل والإكسسوارات" },
+  { name: "شوكمان (عادم)", category: "الهيكل والإكسسوارات" },
+  { name: "فانوس أمامي", category: "الهيكل والإكسسوارات" },
+  { name: "فانوس خلفي", category: "الهيكل والإكسسوارات" },
+  { name: "إشارات", category: "الهيكل والإكسسوارات" },
+  { name: "عدادات", category: "الهيكل والإكسسوارات" },
+  { name: "مفتاح كونتاكت", category: "الهيكل والإكسسوارات" },
+] as const;
 const CHINESE_MACHINE_TYPES = [
   "صيني عام",
+  "Dayun",
+  "هوجن (Hogen)",
+  "بنلي (Benelli)",
+  "حلاوة (Halawa)",
+  "هاوجي (Haojue)",
+  "تايجر (Tiger)",
   "باجاج",
   "دايو",
-  "هوجان",
   "وينج",
   "فيمكو",
   "ليجن",
@@ -283,6 +328,19 @@ export default function HomeScreen() {
     useState<Record<string, number>>(STOCK_SEED);
   const [sales, setSales] = useState<Sale[]>([]);
   const [customProducts, setCustomProducts] = useState<Product[]>([]);
+  const [customMachineTypes, setCustomMachineTypes] = useState<CustomOption[]>(
+    [],
+  );
+  const [customPartTypes, setCustomPartTypes] = useState<CustomOption[]>([]);
+  const [customMaterials, setCustomMaterials] = useState<CustomOption[]>([]);
+  const [newOptionName, setNewOptionName] = useState("");
+  const [editingOption, setEditingOption] = useState<{
+    kind: "machine" | "part" | "material";
+    id: string;
+  } | null>(null);
+  const [optionKind, setOptionKind] = useState<"machine" | "part" | "material">(
+    "machine",
+  );
   const [saleProductId, setSaleProductId] = useState(PRODUCTS[0].id);
   const [newPartName, setNewPartName] = useState("");
   const [newPartCategory, setNewPartCategory] = useState("");
@@ -291,6 +349,7 @@ export default function HomeScreen() {
     CHINESE_MACHINE_TYPES[0],
   );
   const [newPartCompatibility, setNewPartCompatibility] = useState("");
+  const [newPartMaterial, setNewPartMaterial] = useState("");
   const [newPartPrice, setNewPartPrice] = useState("");
   const [newPartQuantity, setNewPartQuantity] = useState("");
   const [saleQuantity, setSaleQuantity] = useState("1");
@@ -321,6 +380,15 @@ export default function HomeScreen() {
     AsyncStorage.getItem(STORAGE_PRODUCTS).then(
       (saved) => saved && setCustomProducts(JSON.parse(saved)),
     );
+    AsyncStorage.getItem(STORAGE_MACHINE_TYPES).then(
+      (saved) => saved && setCustomMachineTypes(JSON.parse(saved)),
+    );
+    AsyncStorage.getItem(STORAGE_PART_TYPES).then(
+      (saved) => saved && setCustomPartTypes(JSON.parse(saved)),
+    );
+    AsyncStorage.getItem(STORAGE_MATERIALS).then(
+      (saved) => saved && setCustomMaterials(JSON.parse(saved)),
+    );
   }, []);
 
   useEffect(() => {
@@ -334,10 +402,47 @@ export default function HomeScreen() {
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(customProducts));
   }, [customProducts]);
+  useEffect(() => {
+    AsyncStorage.setItem(
+      STORAGE_MACHINE_TYPES,
+      JSON.stringify(customMachineTypes),
+    );
+  }, [customMachineTypes]);
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_PART_TYPES, JSON.stringify(customPartTypes));
+  }, [customPartTypes]);
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_MATERIALS, JSON.stringify(customMaterials));
+  }, [customMaterials]);
 
   const catalog = useMemo(
     () => [...PRODUCTS, ...customProducts],
     [customProducts],
+  );
+  const machineOptions = useMemo(
+    () => [
+      ...CHINESE_MACHINE_TYPES.map((name) => ({
+        id: `built-in-${name}`,
+        name,
+      })),
+      ...customMachineTypes,
+    ],
+    [customMachineTypes],
+  );
+  const partTypeOptions = useMemo(
+    () => [
+      ...MOTORCYCLE_PARTS.map((item) => ({
+        id: `built-in-${item.name}`,
+        name: item.name,
+        category: item.category,
+      })),
+      ...customPartTypes,
+    ],
+    [customPartTypes],
+  );
+  const materialOptions = useMemo(
+    () => [...customMaterials],
+    [customMaterials],
   );
 
   const categories = useMemo(
@@ -359,7 +464,7 @@ export default function HomeScreen() {
         const matchesVehicle = vehicle === "الكل" || p.vehicle === vehicle;
         const matchesCategory = category === "الكل" || p.category === category;
         const searchableText =
-          `${p.name} ${p.compatibility} ${p.category} ${(PRODUCT_MODELS[p.id] ?? []).join(" ")}`.toLocaleLowerCase(
+          `${p.name} ${p.compatibility} ${p.category} ${p.machineType ?? ""} ${p.material ?? ""} ${(PRODUCT_MODELS[p.id] ?? []).join(" ")}`.toLocaleLowerCase(
             "ar",
           );
         const matchesQuery =
@@ -843,6 +948,53 @@ export default function HomeScreen() {
     );
   }
 
+  function optionsForKind(kind: "machine" | "part" | "material") {
+    if (kind === "machine") return customMachineTypes;
+    if (kind === "part") return customPartTypes;
+    return customMaterials;
+  }
+
+  function saveOption() {
+    const name = newOptionName.trim();
+    if (!name) return;
+    const current = optionsForKind(optionKind);
+    if (editingOption) {
+      const update = (items: CustomOption[]) =>
+        items.map((item) =>
+          item.id === editingOption.id ? { ...item, name } : item,
+        );
+      if (optionKind === "machine")
+        setCustomMachineTypes(update(customMachineTypes));
+      if (optionKind === "part") setCustomPartTypes(update(customPartTypes));
+      if (optionKind === "material")
+        setCustomMaterials(update(customMaterials));
+    } else if (!current.some((item) => item.name === name)) {
+      const item = { id: `${optionKind}-${Date.now()}`, name };
+      if (optionKind === "machine")
+        setCustomMachineTypes((items) => [...items, item]);
+      if (optionKind === "part")
+        setCustomPartTypes((items) => [...items, item]);
+      if (optionKind === "material")
+        setCustomMaterials((items) => [...items, item]);
+    }
+    setNewOptionName("");
+    setEditingOption(null);
+  }
+
+  function editOption(item: CustomOption) {
+    setNewOptionName(item.name);
+    setEditingOption({ kind: optionKind, id: item.id });
+  }
+
+  function deleteOption(id: string) {
+    if (optionKind === "machine")
+      setCustomMachineTypes((items) => items.filter((item) => item.id !== id));
+    if (optionKind === "part")
+      setCustomPartTypes((items) => items.filter((item) => item.id !== id));
+    if (optionKind === "material")
+      setCustomMaterials((items) => items.filter((item) => item.id !== id));
+  }
+
   function addNewProduct() {
     const quantity = Number.parseInt(newPartQuantity, 10);
     const price = Number.parseFloat(newPartPrice);
@@ -867,6 +1019,7 @@ export default function HomeScreen() {
       price,
       compatibility: newPartCompatibility.trim() || "توافق حسب النوع والموديل",
       machineType: newPartMachine,
+      material: newPartMaterial.trim() || undefined,
       icon: newPartVehicle === "سيارات" ? "directions-car" : "two-wheeler",
       color: newPartVehicle === "سيارات" ? "#DDEAF2" : "#E6E2F5",
     };
@@ -875,6 +1028,7 @@ export default function HomeScreen() {
     setNewPartName("");
     setNewPartCategory("");
     setNewPartCompatibility("");
+    setNewPartMaterial("");
     setNewPartPrice("");
     setNewPartQuantity("");
     setNotice(`تمت إضافة «${product.name}» إلى المتجر والمخزن`);
@@ -957,6 +1111,87 @@ export default function HomeScreen() {
               </View>
             )}
             <View style={styles.formCard}>
+              <Text style={styles.formTitle}>إدارة الأنواع والخامات</Text>
+              <Text style={styles.formHint}>
+                أضف أو عدّل القوائم التي تستخدمها عند تسجيل الأصناف
+              </Text>
+              <View style={styles.choiceRow}>
+                {(
+                  [
+                    ["machine", "الماكينات"],
+                    ["part", "قطع الغيار"],
+                    ["material", "الخامات"],
+                  ] as const
+                ).map(([kind, label]) => (
+                  <Pressable
+                    key={kind}
+                    onPress={() => {
+                      setOptionKind(kind);
+                      setEditingOption(null);
+                      setNewOptionName("");
+                    }}
+                    style={[
+                      styles.choicePill,
+                      optionKind === kind && styles.choicePillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        optionKind === kind && styles.choiceTextActive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.optionEditorRow}>
+                <TextInput
+                  value={newOptionName}
+                  onChangeText={setNewOptionName}
+                  placeholder={editingOption ? "تعديل الاسم" : "اسم جديد"}
+                  placeholderTextColor="#98A2B3"
+                  style={styles.optionInput}
+                />
+                <Pressable style={styles.optionSaveButton} onPress={saveOption}>
+                  <MaterialIcons
+                    name={editingOption ? "edit" : "add"}
+                    size={18}
+                    color="#fff"
+                  />
+                  <Text style={styles.primaryButtonText}>
+                    {editingOption ? "تعديل" : "إضافة"}
+                  </Text>
+                </Pressable>
+              </View>
+              <FlatList
+                horizontal
+                inverted
+                showsHorizontalScrollIndicator={false}
+                data={optionsForKind(optionKind)}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.machineRow}
+                renderItem={({ item }) => (
+                  <View style={styles.managedOption}>
+                    <Text style={styles.machineChipText}>{item.name}</Text>
+                    <View style={styles.optionActions}>
+                      <Pressable onPress={() => editOption(item)}>
+                        <MaterialIcons name="edit" size={14} color="#F7B267" />
+                      </Pressable>
+                      <Pressable onPress={() => deleteOption(item.id)}>
+                        <MaterialIcons
+                          name="delete-outline"
+                          size={14}
+                          color="#FFB4A8"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+              />
+            </View>
+            <View style={styles.formCard}>
               <Text style={styles.formTitle}>
                 إدراج قطعة جديدة في المتجر والمخزن
               </Text>
@@ -1001,6 +1236,13 @@ export default function HomeScreen() {
                   placeholderTextColor="#98A2B3"
                   style={[styles.inventoryInput, styles.formInputWide]}
                 />
+                <TextInput
+                  value={newPartMaterial}
+                  onChangeText={setNewPartMaterial}
+                  placeholder="الخامة: حديد، بلاستيك..."
+                  placeholderTextColor="#98A2B3"
+                  style={[styles.inventoryInput, styles.formInputWide]}
+                />
               </View>
               <View style={styles.choiceRow}>
                 {(["سيارات", "دراجات نارية"] as Vehicle[]).map((item) => (
@@ -1023,29 +1265,94 @@ export default function HomeScreen() {
                   </Pressable>
                 ))}
               </View>
-              <Text style={styles.machineLabel}>نوع الماكينة الصينية</Text>
+              <Text style={styles.machineLabel}>
+                قطع موتوسيكلات جاهزة حسب الفئة
+              </Text>
               <FlatList
                 horizontal
                 inverted
                 showsHorizontalScrollIndicator={false}
-                data={CHINESE_MACHINE_TYPES}
-                keyExtractor={(item) => item}
+                data={partTypeOptions}
+                keyExtractor={(item) => item.name}
                 contentContainerStyle={styles.machineRow}
                 renderItem={({ item }) => (
                   <Pressable
-                    onPress={() => setNewPartMachine(item)}
+                    onPress={() => {
+                      setNewPartName(item.name);
+                      setNewPartCategory(item.category ?? "قطع غيار");
+                      setNewPartVehicle("دراجات نارية");
+                    }}
                     style={[
                       styles.machineChip,
-                      newPartMachine === item && styles.machineChipActive,
+                      newPartName === item.name && styles.machineChipActive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.machineChipText,
-                        newPartMachine === item && styles.machineChipTextActive,
+                        newPartName === item.name &&
+                          styles.machineChipTextActive,
                       ]}
                     >
-                      {item}
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+              <Text style={styles.machineLabel}>
+                نوع الماكينة أو الماركة الصينية
+              </Text>
+              <FlatList
+                horizontal
+                inverted
+                showsHorizontalScrollIndicator={false}
+                data={machineOptions}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.machineRow}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => setNewPartMachine(item.name)}
+                    style={[
+                      styles.machineChip,
+                      newPartMachine === item.name && styles.machineChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.machineChipText,
+                        newPartMachine === item.name &&
+                          styles.machineChipTextActive,
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+              <Text style={styles.machineLabel}>الخامة</Text>
+              <FlatList
+                horizontal
+                inverted
+                showsHorizontalScrollIndicator={false}
+                data={materialOptions}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.machineRow}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => setNewPartMaterial(item.name)}
+                    style={[
+                      styles.machineChip,
+                      newPartMaterial === item.name && styles.machineChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.machineChipText,
+                        newPartMaterial === item.name &&
+                          styles.machineChipTextActive,
+                      ]}
+                    >
+                      {item.name}
                     </Text>
                   </Pressable>
                 )}
@@ -1124,6 +1431,7 @@ export default function HomeScreen() {
                 <Text style={styles.productName}>{item.name}</Text>
                 <Text style={styles.compatibility}>
                   {item.vehicle} · {item.category}
+                  {item.machineType ? ` · ${item.machineType}` : ""}
                 </Text>
               </View>
               <View style={[styles.stockBadge, isLow && styles.stockBadgeLow]}>
@@ -1988,6 +2296,41 @@ const styles = StyleSheet.create({
   machineChipActive: { backgroundColor: "#274762", borderColor: ORANGE },
   machineChipText: { color: "#D5E0E9", fontSize: 10, fontWeight: "700" },
   machineChipTextActive: { color: "#fff" },
+  optionEditorRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  optionInput: {
+    flex: 1,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    color: NAVY,
+    paddingHorizontal: 12,
+    textAlign: "right",
+    fontSize: 12,
+  },
+  optionSaveButton: {
+    minHeight: 42,
+    borderRadius: 11,
+    backgroundColor: ORANGE,
+    paddingHorizontal: 13,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+  },
+  managedOption: {
+    minWidth: 112,
+    borderRadius: 11,
+    backgroundColor: "#18334B",
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    alignItems: "center",
+    gap: 5,
+  },
+  optionActions: { flexDirection: "row", gap: 10 },
   saleProductsRow: { gap: 8, paddingVertical: 3 },
   saleProduct: {
     minWidth: 105,
