@@ -273,6 +273,7 @@ export default function HomeScreen() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [notice, setNotice] = useState("");
+  const isDesktop = Platform.OS === "web";
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_CART).then(
@@ -986,13 +987,22 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer containerClassName="bg-[#F8F5EF]" className="p-0">
-      <View style={styles.flex}>
+      <View style={[styles.flex, isDesktop && styles.desktopShell]}>
         {tab === "home" && <Home />}
         {tab === "catalog" && <Catalog />}
         {tab === "cart" && <Cart />}
         {tab === "orders" && <Orders />}
         {tab === "admin" && <Admin />}
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, isDesktop && styles.desktopTabBar]}>
+          {isDesktop && (
+            <View style={styles.sidebarBrand}>
+              <View style={styles.sidebarMark}>
+                <MaterialIcons name="build" size={24} color="#fff" />
+              </View>
+              <Text style={styles.sidebarTitle}>موتو بارتس</Text>
+              <Text style={styles.sidebarSubtitle}>إدارة قطع الغيار</Text>
+            </View>
+          )}
           {[
             ["home", "home", "الرئيسية"],
             ["catalog", "grid-view", "الكتالوج"],
@@ -1005,6 +1015,7 @@ export default function HomeScreen() {
               onPress={() => setTab(key as typeof tab)}
               style={({ pressed }) => [
                 styles.tabItem,
+                isDesktop && styles.desktopTabItem,
                 pressed && styles.pressed,
               ]}
             >
@@ -1406,6 +1417,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F1EEE8",
   },
+  desktopShell: { flexDirection: "row-reverse" },
   tabBar: {
     position: "absolute",
     bottom: 0,
@@ -1422,6 +1434,62 @@ const styles = StyleSheet.create({
   tabItem: { alignItems: "center", minWidth: 70 },
   tabLabel: { color: MUTED, fontSize: 10, fontWeight: "700", marginTop: 4 },
   tabLabelActive: { color: ORANGE },
+  desktopTabItem: {
+    width: "100%",
+    minWidth: 0,
+    height: 50,
+    flexDirection: "row-reverse",
+    justifyContent: "flex-start",
+    gap: 13,
+    paddingHorizontal: 13,
+    borderRadius: 13,
+    marginBottom: 6,
+    alignItems: "center",
+  },
+  desktopTabBar: {
+    position: "relative",
+    left: undefined,
+    right: undefined,
+    bottom: undefined,
+    width: 228,
+    height: "100%",
+    paddingTop: 28,
+    paddingHorizontal: 14,
+    justifyContent: "flex-start",
+    flexDirection: "column",
+    backgroundColor: NAVY,
+    borderTopWidth: 0,
+  },
+  sidebarBrand: {
+    alignItems: "flex-end",
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingBottom: 27,
+    borderBottomWidth: 1,
+    borderBottomColor: "#29445B",
+    marginBottom: 18,
+  },
+  sidebarMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: ORANGE,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  sidebarTitle: {
+    color: "#fff",
+    fontSize: 19,
+    fontWeight: "900",
+    textAlign: "right",
+  },
+  sidebarSubtitle: {
+    color: "#B5C4D0",
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 4,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(11,31,51,0.42)",
