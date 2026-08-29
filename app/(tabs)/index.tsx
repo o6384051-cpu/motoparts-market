@@ -50,6 +50,22 @@ type Sale = {
   total: number;
 };
 type CustomOption = { id: string; name: string; category?: string };
+type CurrencyCode = "SAR" | "EGP" | "USD" | "EUR" | "AED";
+const CURRENCIES: Record<
+  CurrencyCode,
+  { label: string; symbol: string; locale: string; rate: number }
+> = {
+  SAR: { label: "الريال السعودي", symbol: "ر.س", locale: "ar-SA", rate: 1 },
+  EGP: { label: "الجنيه المصري", symbol: "ج.م", locale: "ar-EG", rate: 13 },
+  USD: { label: "الدولار الأمريكي", symbol: "$", locale: "en-US", rate: 0.267 },
+  EUR: { label: "اليورو", symbol: "€", locale: "de-DE", rate: 0.246 },
+  AED: {
+    label: "الدرهم الإماراتي",
+    symbol: "د.إ",
+    locale: "ar-AE",
+    rate: 0.98,
+  },
+};
 
 const PRODUCTS: Product[] = [
   {
@@ -185,6 +201,8 @@ const STORAGE_PRODUCTS = "motoparts-products-v1";
 const STORAGE_MACHINE_TYPES = "motoparts-machine-types-v1";
 const STORAGE_PART_TYPES = "motoparts-part-types-v1";
 const STORAGE_MATERIALS = "motoparts-materials-v1";
+const STORAGE_CURRENCY = "motoparts-currency-v1";
+const STORAGE_PRICE_OVERRIDES = "motoparts-price-overrides-v1";
 const MOTORCYCLE_PARTS = [
   { name: "سلندر", category: "المحرك والتغذية" },
   { name: "بستم", category: "المحرك والتغذية" },
@@ -288,8 +306,9 @@ const PRODUCT_MODELS: Record<string, string[]> = {
   "bike-tire": ["هوندا CG 125", "ياماها YBR 125", "سوزوكي GN 125"],
 };
 
-function money(value: number) {
-  return `${value.toLocaleString("ar-SA")} ر.س`;
+function money(value: number, currency: CurrencyCode = "SAR") {
+  const config = CURRENCIES[currency];
+  return `${(value * config.rate).toLocaleString(config.locale, { maximumFractionDigits: 2 })} ${config.symbol}`;
 }
 
 function ProductArtwork({
@@ -333,6 +352,12 @@ export default function HomeScreen() {
   );
   const [customPartTypes, setCustomPartTypes] = useState<CustomOption[]>([]);
   const [customMaterials, setCustomMaterials] = useState<CustomOption[]>([]);
+  const [currency, setCurrency] = useState<CurrencyCode>("SAR");
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>(
+    {},
+  );
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [priceDraft, setPriceDraft] = useState("");
   const [newOptionName, setNewOptionName] = useState("");
   const [editingOption, setEditingOption] = useState<{
     kind: "machine" | "part" | "material";
@@ -389,6 +414,12 @@ export default function HomeScreen() {
     AsyncStorage.getItem(STORAGE_MATERIALS).then(
       (saved) => saved && setCustomMaterials(JSON.parse(saved)),
     );
+    AsyncStorage.getItem(STORAGE_CURRENCY).then(
+      (saved) => saved && setCurrency(JSON.parse(saved)),
+    );
+    AsyncStorage.getItem(STORAGE_PRICE_OVERRIDES).then(
+      (saved) => saved && setPriceOverrides(JSON.parse(saved)),
+    );
   }, []);
 
   useEffect(() => {
@@ -414,11 +445,25 @@ export default function HomeScreen() {
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_MATERIALS, JSON.stringify(customMaterials));
   }, [customMaterials]);
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_CURRENCY, JSON.stringify(currency));
+  }, [currency]);
+  useEffect(() => {
+    AsyncStorage.setItem(
+      STORAGE_PRICE_OVERRIDES,
+      JSON.stringify(priceOverrides),
+    );
+  }, [priceOverrides]);
 
   const catalog = useMemo(
-    () => [...PRODUCTS, ...customProducts],
-    [customProducts],
+    () =>
+      [...PRODUCTS, ...customProducts].map((product) => ({
+        ...product,
+        price: priceOverrides[product.id] ?? product.price,
+      })),
+    [customProducts, priceOverrides],
   );
+  const displayMoney = (value: number) => money(value, currency);
   const machineOptions = useMemo(
     () => [
       ...CHINESE_MACHINE_TYPES.map((name) => ({
@@ -585,7 +630,7 @@ export default function HomeScreen() {
           {item.compatibility}
         </Text>
         <View style={styles.productBottom}>
-          <Text style={styles.price}>{money(item.price)}</Text>
+          <Text style={styles.price}>{displayMoney(item.price)}</Text>
           <Pressable
             style={({ pressed }) => [
               styles.addButton,
@@ -842,7 +887,7 @@ export default function HomeScreen() {
               <View style={styles.cartLineMain}>
                 <Text style={styles.productName}>{item.name}</Text>
                 <Text style={styles.compatibility}>
-                  {item.vehicle} · {money(item.price)}
+                  {item.vehicle} · {displayMoney(item.price)}
                 </Text>
                 <View style={styles.quantityRow}>
                   <Pressable
@@ -861,7 +906,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <Text style={styles.lineTotal}>
-                {money(item.price * item.quantity)}
+                {displayMoney(item.price * item.quantity)}
               </Text>
             </View>
           )}
@@ -885,7 +930,7 @@ export default function HomeScreen() {
           <View style={styles.checkoutBar}>
             <View>
               <Text style={styles.totalLabel}>الإجمالي</Text>
-              <Text style={styles.totalValue}>{money(cartTotal)}</Text>
+              <Text style={styles.totalValue}>{displayMoney(cartTotal)}</Text>
             </View>
             <Pressable
               style={styles.primaryButton}
@@ -925,7 +970,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.orderBottom}>
               <Text style={styles.compatibility}>الإجمالي</Text>
-              <Text style={styles.price}>{money(item.total)}</Text>
+              <Text style={styles.price}>{displayMoney(item.total)}</Text>
             </View>
           </View>
         )}
@@ -1068,6 +1113,20 @@ export default function HomeScreen() {
     setTimeout(() => setNotice(""), 2400);
   }
 
+  function savePrice(productId: string) {
+    const nextPrice = Number.parseFloat(priceDraft);
+    if (!Number.isFinite(nextPrice) || nextPrice < 0) {
+      setNotice("أدخل سعرًا صحيحًا");
+      setTimeout(() => setNotice(""), 2200);
+      return;
+    }
+    setPriceOverrides((current) => ({ ...current, [productId]: nextPrice }));
+    setEditingPriceId(null);
+    setPriceDraft("");
+    setNotice("تم تحديث سعر القطعة");
+    setTimeout(() => setNotice(""), 2200);
+  }
+
   function Admin() {
     return (
       <FlatList
@@ -1086,7 +1145,9 @@ export default function HomeScreen() {
                 <Text style={styles.statLabel}>عمليات البيع</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{money(salesTotal)}</Text>
+                <Text style={styles.statNumber}>
+                  {displayMoney(salesTotal)}
+                </Text>
                 <Text style={styles.statLabel}>إجمالي المبيعات</Text>
               </View>
               <View
@@ -1097,6 +1158,35 @@ export default function HomeScreen() {
               >
                 <Text style={styles.statNumber}>{lowStockProducts.length}</Text>
                 <Text style={styles.statLabel}>تنبيهات النقص</Text>
+              </View>
+            </View>
+            <View style={styles.currencyCard}>
+              <View>
+                <Text style={styles.currencyTitle}>عملة الأسعار</Text>
+                <Text style={styles.currencyHint}>
+                  {CURRENCIES[currency].label}
+                </Text>
+              </View>
+              <View style={styles.currencyRow}>
+                {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
+                  <Pressable
+                    key={code}
+                    onPress={() => setCurrency(code)}
+                    style={[
+                      styles.currencyChip,
+                      currency === code && styles.currencyChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.currencyChipText,
+                        currency === code && styles.currencyChipTextActive,
+                      ]}
+                    >
+                      {CURRENCIES[code].symbol}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
             {lowStockProducts.length > 0 && (
@@ -1446,6 +1536,31 @@ export default function HomeScreen() {
                   {isLow ? "منخفض" : "متوفر"}
                 </Text>
               </View>
+              <View style={styles.stockPriceBox}>
+                {editingPriceId === item.id ? (
+                  <View style={styles.priceEditRow}>
+                    <TextInput
+                      value={priceDraft}
+                      onChangeText={setPriceDraft}
+                      keyboardType="decimal-pad"
+                      style={styles.priceEditInput}
+                    />
+                    <Pressable onPress={() => savePrice(item.id)}>
+                      <MaterialIcons name="check" size={19} color={GREEN} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      setEditingPriceId(item.id);
+                      setPriceDraft(String(item.price));
+                    }}
+                  >
+                    <Text style={styles.price}>{displayMoney(item.price)}</Text>
+                    <Text style={styles.editPriceLabel}>تعديل السعر</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           );
         }}
@@ -1464,7 +1579,7 @@ export default function HomeScreen() {
                       {sale.date} · كمية {sale.quantity}
                     </Text>
                   </View>
-                  <Text style={styles.price}>{money(sale.total)}</Text>
+                  <Text style={styles.price}>{displayMoney(sale.total)}</Text>
                 </View>
               ))}
             </View>
@@ -1614,7 +1729,7 @@ export default function HomeScreen() {
                 </Text>
                 <View style={styles.detailPriceRow}>
                   <Text style={styles.detailPrice}>
-                    {money(selected.price)}
+                    {displayMoney(selected.price)}
                   </Text>
                   <Pressable
                     style={styles.primaryButton}
@@ -1683,7 +1798,9 @@ export default function HomeScreen() {
             <View style={styles.detailPriceRow}>
               <View>
                 <Text style={styles.totalLabel}>الإجمالي</Text>
-                <Text style={styles.detailPrice}>{money(cartTotal)}</Text>
+                <Text style={styles.detailPrice}>
+                  {displayMoney(cartTotal)}
+                </Text>
               </View>
               <Pressable style={styles.primaryButton} onPress={placeOrder}>
                 <Text style={styles.primaryButtonText}>تأكيد الطلب</Text>
@@ -2365,6 +2482,65 @@ const styles = StyleSheet.create({
     color: NAVY,
     textAlign: "center",
     fontSize: 17,
+    fontWeight: "800",
+  },
+  currencyCard: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF7ED",
+    borderRadius: 15,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#F8D1B0",
+  },
+  currencyTitle: {
+    color: NAVY,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "right",
+  },
+  currencyHint: {
+    color: MUTED,
+    fontSize: 10,
+    textAlign: "right",
+    marginTop: 3,
+  },
+  currencyRow: {
+    flexDirection: "row-reverse",
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    maxWidth: 360,
+  },
+  currencyChip: {
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#F1D4BA",
+  },
+  currencyChipActive: { backgroundColor: NAVY, borderColor: NAVY },
+  currencyChipText: { color: NAVY, fontSize: 10, fontWeight: "800" },
+  currencyChipTextActive: { color: "#fff" },
+  stockPriceBox: { minWidth: 92, alignItems: "flex-end", marginHorizontal: 10 },
+  editPriceLabel: {
+    color: ORANGE,
+    fontSize: 9,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  priceEditRow: { flexDirection: "row-reverse", alignItems: "center", gap: 5 },
+  priceEditInput: {
+    width: 72,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#FFF7ED",
+    color: NAVY,
+    textAlign: "center",
+    fontSize: 12,
     fontWeight: "800",
   },
   stockRow: {
