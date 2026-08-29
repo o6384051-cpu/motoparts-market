@@ -193,6 +193,7 @@ const STOCK_SEED: Record<string, number> = {
   "bike-tire": 5,
 };
 const LOW_STOCK_LIMIT = 3;
+const ACCESS_CODE = "osamakamel1121978";
 const MODEL_FILTERS = [
   "تويوتا كورولا",
   "تويوتا كامري",
@@ -273,6 +274,9 @@ export default function HomeScreen() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [notice, setNotice] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
   const isDesktop = Platform.OS === "web";
 
   useEffect(() => {
@@ -985,6 +989,70 @@ export default function HomeScreen() {
     );
   }
 
+  function LoginScreen() {
+    function unlock() {
+      if (accessCode === ACCESS_CODE) {
+        setUnlocked(true);
+        setLoginError("");
+      } else {
+        setLoginError("الرمز غير صحيح، حاول مرة أخرى");
+      }
+    }
+
+    return (
+      <ScreenContainer
+        containerClassName="bg-[#F8F5EF]"
+        className="p-0"
+        edges={["top", "bottom", "left", "right"]}
+      >
+        <View style={styles.loginPage}>
+          <View style={styles.loginCard}>
+            <View style={styles.loginMark}>
+              <MaterialIcons name="build" size={34} color="#fff" />
+            </View>
+            <Text style={styles.loginBrand}>موتو بارتس ماركت</Text>
+            <Text style={styles.loginTitle}>تسجيل الدخول</Text>
+            <Text style={styles.loginSubtitle}>
+              أدخل رمز المتجر للوصول إلى لوحة قطع الغيار
+            </Text>
+            <TextInput
+              value={accessCode}
+              onChangeText={(value) => {
+                setAccessCode(value);
+                setLoginError("");
+              }}
+              placeholder="رمز الدخول"
+              placeholderTextColor="#98A2B3"
+              style={styles.loginInput}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              onSubmitEditing={unlock}
+            />
+            {loginError ? (
+              <Text style={styles.loginError}>{loginError}</Text>
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [
+                styles.loginButton,
+                pressed && styles.pressed,
+              ]}
+              onPress={unlock}
+            >
+              <Text style={styles.loginButtonText}>فتح التطبيق</Text>
+              <MaterialIcons name="arrow-back" size={20} color="#fff" />
+            </Pressable>
+            <Text style={styles.offlineNote}>
+              يعمل الدخول محليًا دون اتصال بالإنترنت
+            </Text>
+          </View>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!unlocked) return <LoginScreen />;
+
   return (
     <ScreenContainer containerClassName="bg-[#F8F5EF]" className="p-0">
       <View style={[styles.flex, isDesktop && styles.desktopShell]}>
@@ -1417,6 +1485,78 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F1EEE8",
   },
+  loginPage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loginCard: {
+    width: "100%",
+    maxWidth: 430,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EEE9E1",
+    shadowColor: NAVY,
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  loginMark: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    backgroundColor: ORANGE,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  loginBrand: { color: ORANGE, fontSize: 14, fontWeight: "800" },
+  loginTitle: { color: NAVY, fontSize: 28, fontWeight: "900", marginTop: 20 },
+  loginSubtitle: {
+    color: MUTED,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 21,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  loginInput: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E6E0D6",
+    backgroundColor: CREAM,
+    paddingHorizontal: 15,
+    textAlign: "left",
+    color: NAVY,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  loginError: {
+    color: "#B42318",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 9,
+    textAlign: "center",
+  },
+  loginButton: {
+    width: "100%",
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row-reverse",
+    gap: 9,
+    marginTop: 16,
+  },
+  loginButtonText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  offlineNote: { color: MUTED, fontSize: 11, marginTop: 18 },
   desktopShell: { flexDirection: "row-reverse" },
   tabBar: {
     position: "absolute",
