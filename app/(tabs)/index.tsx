@@ -28,6 +28,7 @@ type Product = {
   vehicle: Vehicle;
   price: number;
   compatibility: string;
+  machineType?: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   color: string;
   featured?: boolean;
@@ -178,6 +179,21 @@ const STORAGE_CART = "motoparts-cart-v1";
 const STORAGE_ORDERS = "motoparts-orders-v1";
 const STORAGE_INVENTORY = "motoparts-inventory-v1";
 const STORAGE_SALES = "motoparts-sales-v1";
+const STORAGE_PRODUCTS = "motoparts-products-v1";
+const CHINESE_MACHINE_TYPES = [
+  "صيني عام",
+  "باجاج",
+  "دايو",
+  "هوجان",
+  "وينج",
+  "فيمكو",
+  "ليجن",
+  "جاوا",
+  "موتوسيكل صيني 125",
+  "موتوسيكل صيني 150",
+  "موتوسيكل صيني 200",
+  "تروسيكل صيني",
+];
 const STOCK_SEED: Record<string, number> = {
   "car-oil-filter": 8,
   "car-brake-pads": 3,
@@ -266,7 +282,17 @@ export default function HomeScreen() {
   const [inventory, setInventory] =
     useState<Record<string, number>>(STOCK_SEED);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [customProducts, setCustomProducts] = useState<Product[]>([]);
   const [saleProductId, setSaleProductId] = useState(PRODUCTS[0].id);
+  const [newPartName, setNewPartName] = useState("");
+  const [newPartCategory, setNewPartCategory] = useState("");
+  const [newPartVehicle, setNewPartVehicle] = useState<Vehicle>("دراجات نارية");
+  const [newPartMachine, setNewPartMachine] = useState(
+    CHINESE_MACHINE_TYPES[0],
+  );
+  const [newPartCompatibility, setNewPartCompatibility] = useState("");
+  const [newPartPrice, setNewPartPrice] = useState("");
+  const [newPartQuantity, setNewPartQuantity] = useState("");
   const [saleQuantity, setSaleQuantity] = useState("1");
   const [selected, setSelected] = useState<Product | null>(null);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
@@ -292,6 +318,9 @@ export default function HomeScreen() {
     AsyncStorage.getItem(STORAGE_SALES).then(
       (saved) => saved && setSales(JSON.parse(saved)),
     );
+    AsyncStorage.getItem(STORAGE_PRODUCTS).then(
+      (saved) => saved && setCustomProducts(JSON.parse(saved)),
+    );
   }, []);
 
   useEffect(() => {
@@ -302,22 +331,31 @@ export default function HomeScreen() {
     AsyncStorage.setItem(STORAGE_INVENTORY, JSON.stringify(inventory));
   }, [inventory]);
 
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(customProducts));
+  }, [customProducts]);
+
+  const catalog = useMemo(
+    () => [...PRODUCTS, ...customProducts],
+    [customProducts],
+  );
+
   const categories = useMemo(
     () => [
       "الكل",
       ...Array.from(
         new Set(
-          PRODUCTS.filter(
-            (p) => vehicle === "الكل" || p.vehicle === vehicle,
-          ).map((p) => p.category),
+          catalog
+            .filter((p) => vehicle === "الكل" || p.vehicle === vehicle)
+            .map((p) => p.category),
         ),
       ),
     ],
-    [vehicle],
+    [vehicle, catalog],
   );
   const filtered = useMemo(
     () =>
-      PRODUCTS.filter((p) => {
+      catalog.filter((p) => {
         const matchesVehicle = vehicle === "الكل" || p.vehicle === vehicle;
         const matchesCategory = category === "الكل" || p.category === category;
         const searchableText =
@@ -329,14 +367,14 @@ export default function HomeScreen() {
           searchableText.includes(query.trim().toLocaleLowerCase("ar"));
         return matchesVehicle && matchesCategory && matchesQuery;
       }),
-    [vehicle, category, query],
+    [vehicle, category, query, catalog],
   );
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const cartTotal = cart.reduce(
     (sum, line) => sum + line.price * line.quantity,
     0,
   );
-  const lowStockProducts = PRODUCTS.filter(
+  const lowStockProducts = catalog.filter(
     (product) => (inventory[product.id] ?? 0) <= LOW_STOCK_LIMIT,
   );
   const salesTotal = sales.reduce((sum, sale) => sum + sale.total, 0);
@@ -805,8 +843,46 @@ export default function HomeScreen() {
     );
   }
 
+  function addNewProduct() {
+    const quantity = Number.parseInt(newPartQuantity, 10);
+    const price = Number.parseFloat(newPartPrice);
+    if (
+      !newPartName.trim() ||
+      !newPartCategory.trim() ||
+      !Number.isFinite(quantity) ||
+      quantity < 0 ||
+      !Number.isFinite(price) ||
+      price < 0
+    ) {
+      setNotice("أدخل اسم القطعة والنوع والعدد والسعر بشكل صحيح");
+      setTimeout(() => setNotice(""), 2400);
+      return;
+    }
+    const id = `custom-${Date.now()}`;
+    const product: Product = {
+      id,
+      name: newPartName.trim(),
+      category: newPartCategory.trim(),
+      vehicle: newPartVehicle,
+      price,
+      compatibility: newPartCompatibility.trim() || "توافق حسب النوع والموديل",
+      machineType: newPartMachine,
+      icon: newPartVehicle === "سيارات" ? "directions-car" : "two-wheeler",
+      color: newPartVehicle === "سيارات" ? "#DDEAF2" : "#E6E2F5",
+    };
+    setCustomProducts((current) => [...current, product]);
+    setInventory((current) => ({ ...current, [id]: quantity }));
+    setNewPartName("");
+    setNewPartCategory("");
+    setNewPartCompatibility("");
+    setNewPartPrice("");
+    setNewPartQuantity("");
+    setNotice(`تمت إضافة «${product.name}» إلى المتجر والمخزن`);
+    setTimeout(() => setNotice(""), 2600);
+  }
+
   function recordSale() {
-    const product = PRODUCTS.find((item) => item.id === saleProductId);
+    const product = catalog.find((item) => item.id === saleProductId);
     const quantity = Number.parseInt(saleQuantity, 10);
     const available = inventory[saleProductId] ?? 0;
     if (!product || !Number.isFinite(quantity) || quantity < 1) {
@@ -841,7 +917,7 @@ export default function HomeScreen() {
   function Admin() {
     return (
       <FlatList
-        data={PRODUCTS}
+        data={catalog}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.scrollContent}
         ListHeaderComponent={
@@ -881,6 +957,107 @@ export default function HomeScreen() {
               </View>
             )}
             <View style={styles.formCard}>
+              <Text style={styles.formTitle}>
+                إدراج قطعة جديدة في المتجر والمخزن
+              </Text>
+              <Text style={styles.formHint}>
+                ستظهر القطعة فورًا في الكتالوج مع الكمية التي تدخلها
+              </Text>
+              <View style={styles.inputGrid}>
+                <TextInput
+                  value={newPartName}
+                  onChangeText={setNewPartName}
+                  placeholder="اسم قطعة الغيار"
+                  placeholderTextColor="#98A2B3"
+                  style={styles.inventoryInput}
+                />
+                <TextInput
+                  value={newPartCategory}
+                  onChangeText={setNewPartCategory}
+                  placeholder="نوع القطعة: فرامل، محرك..."
+                  placeholderTextColor="#98A2B3"
+                  style={styles.inventoryInput}
+                />
+                <TextInput
+                  value={newPartPrice}
+                  onChangeText={setNewPartPrice}
+                  placeholder="السعر"
+                  placeholderTextColor="#98A2B3"
+                  keyboardType="decimal-pad"
+                  style={styles.inventoryInput}
+                />
+                <TextInput
+                  value={newPartQuantity}
+                  onChangeText={setNewPartQuantity}
+                  placeholder="العدد في المخزن"
+                  placeholderTextColor="#98A2B3"
+                  keyboardType="number-pad"
+                  style={styles.inventoryInput}
+                />
+                <TextInput
+                  value={newPartCompatibility}
+                  onChangeText={setNewPartCompatibility}
+                  placeholder="الموديل أو التوافق (اختياري)"
+                  placeholderTextColor="#98A2B3"
+                  style={[styles.inventoryInput, styles.formInputWide]}
+                />
+              </View>
+              <View style={styles.choiceRow}>
+                {(["سيارات", "دراجات نارية"] as Vehicle[]).map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => setNewPartVehicle(item)}
+                    style={[
+                      styles.choicePill,
+                      newPartVehicle === item && styles.choicePillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        newPartVehicle === item && styles.choiceTextActive,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.machineLabel}>نوع الماكينة الصينية</Text>
+              <FlatList
+                horizontal
+                inverted
+                showsHorizontalScrollIndicator={false}
+                data={CHINESE_MACHINE_TYPES}
+                keyExtractor={(item) => item}
+                contentContainerStyle={styles.machineRow}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => setNewPartMachine(item)}
+                    style={[
+                      styles.machineChip,
+                      newPartMachine === item && styles.machineChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.machineChipText,
+                        newPartMachine === item && styles.machineChipTextActive,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+              <Pressable style={styles.primaryButton} onPress={addNewProduct}>
+                <MaterialIcons name="add-box" size={19} color="#fff" />
+                <Text style={styles.primaryButtonText}>
+                  حفظ القطعة في المتجر والمخزن
+                </Text>
+              </Pressable>
+            </View>
+            <View style={styles.formCard}>
               <Text style={styles.formTitle}>تسجيل بيع جديد</Text>
               <Text style={styles.formHint}>
                 يُخصم من المخزون ويحفظ على الجهاز مباشرة
@@ -889,7 +1066,7 @@ export default function HomeScreen() {
                 horizontal
                 inverted
                 showsHorizontalScrollIndicator={false}
-                data={PRODUCTS}
+                data={catalog}
                 keyExtractor={(item) => `sale-${item.id}`}
                 contentContainerStyle={styles.saleProductsRow}
                 renderItem={({ item }) => (
@@ -933,7 +1110,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>كميات المخزون</Text>
-              <Text style={styles.link}>{PRODUCTS.length} أصناف</Text>
+              <Text style={styles.link}>{catalog.length} أصناف</Text>
             </View>
           </>
         }
@@ -1764,6 +1941,53 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 13,
   },
+  inputGrid: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 9,
+    marginBottom: 12,
+  },
+  inventoryInput: {
+    flexGrow: 1,
+    flexBasis: 180,
+    minWidth: 170,
+    height: 43,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    color: NAVY,
+    paddingHorizontal: 12,
+    textAlign: "right",
+    fontSize: 12,
+  },
+  formInputWide: { flexBasis: 100 },
+  choiceRow: { flexDirection: "row-reverse", gap: 8, marginBottom: 12 },
+  choicePill: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#486178",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  choicePillActive: { backgroundColor: ORANGE, borderColor: ORANGE },
+  choiceText: { color: "#D5E0E9", fontSize: 11, fontWeight: "800" },
+  choiceTextActive: { color: "#fff" },
+  machineLabel: {
+    color: "#B9C9D8",
+    fontSize: 11,
+    textAlign: "right",
+    marginBottom: 7,
+  },
+  machineRow: { gap: 7, paddingBottom: 13 },
+  machineChip: {
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#486178",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  machineChipActive: { backgroundColor: "#274762", borderColor: ORANGE },
+  machineChipText: { color: "#D5E0E9", fontSize: 10, fontWeight: "700" },
+  machineChipTextActive: { color: "#fff" },
   saleProductsRow: { gap: 8, paddingVertical: 3 },
   saleProduct: {
     minWidth: 105,
